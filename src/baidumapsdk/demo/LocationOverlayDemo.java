@@ -1,10 +1,33 @@
 package baidumapsdk.demo;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.List;
+import java.util.UUID;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Bitmap.CompressFormat;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Menu;
@@ -29,11 +52,20 @@ import com.baidu.mapapi.map.MyLocationOverlay.LocationMode;
 import com.baidu.mapapi.map.PopupClickListener;
 import com.baidu.mapapi.map.PopupOverlay;
 import com.baidu.platform.comapi.basestruct.GeoPoint;
+
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.StringBody;
+import org.apache.http.impl.client.DefaultHttpClient;
+
+
 /**
  * 此demo用来展示如何结合定位SDK实现定位，并使用MyLocationOverlay绘制定位位置
  * 同时展示如何使用自定义图标绘制并点击时弹出泡泡
  *
  */
+
 public class LocationOverlayDemo extends Activity {
 	private enum E_BUTTON_TYPE {
 		LOC,
@@ -204,6 +236,35 @@ public class LocationOverlayDemo extends Activity {
      */
     public class MyLocationListenner implements BDLocationListener {
     	
+    	public void post(String url, List<NameValuePair> nameValuePairs) {
+    	    HttpClient httpClient = new DefaultHttpClient();
+    	    HttpContext localContext = new BasicHttpContext();
+    	    HttpPost httpPost = new HttpPost(url);
+
+    	    try {
+    	        MultipartEntity entity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
+
+    	        for(int index=0; index < nameValuePairs.size(); index++) {
+    	            if(nameValuePairs.get(index).getName().equalsIgnoreCase("image")) {
+    	                // If the key equals to "image", we use FileBody to transfer the data
+    	                entity.addPart(nameValuePairs.get(index).getName(), new FileBody(new File (nameValuePairs.get(index).getValue())));
+    	            } else {
+    	                // Normal string data
+    	                entity.addPart(nameValuePairs.get(index).getName(), new StringBody(nameValuePairs.get(index).getValue()));
+    	            }
+    	        }
+
+    	        httpPost.setEntity(entity);
+
+    	        HttpResponse response = httpClient.execute(httpPost, localContext);
+    	    } catch (IOException e) {
+    	        e.printStackTrace();
+    	    }
+    	}	
+    	
+    
+    	
+    	
         @Override
         public void onReceiveLocation(BDLocation location) {
             if (location == null)
@@ -211,6 +272,10 @@ public class LocationOverlayDemo extends Activity {
             
             locData.latitude = location.getLatitude();
             locData.longitude = location.getLongitude();
+            
+            
+            
+            
             //如果不显示定位精度圈，将accuracy赋值为0即可
             locData.accuracy = location.getRadius();
             // 此处可以设置 locData的方向信息, 如果定位 SDK 未返回方向信息，用户可以自己实现罗盘功能添加方向信息。
