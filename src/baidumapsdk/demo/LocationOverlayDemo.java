@@ -44,11 +44,13 @@ import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
+import com.baidu.mapapi.map.ItemizedOverlay;
 import com.baidu.mapapi.map.LocationData;
 import com.baidu.mapapi.map.MapController;
 import com.baidu.mapapi.map.MapView;
 import com.baidu.mapapi.map.MyLocationOverlay;
 import com.baidu.mapapi.map.MyLocationOverlay.LocationMode;
+import com.baidu.mapapi.map.OverlayItem;
 import com.baidu.mapapi.map.PopupClickListener;
 import com.baidu.mapapi.map.PopupOverlay;
 import com.baidu.platform.comapi.basestruct.GeoPoint;
@@ -60,6 +62,29 @@ import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 
 
+
+/*
+ * 要处理overlay点击事件时需要继承ItemizedOverlay
+ * 不处理点击事件时可直接生成ItemizedOverlay.
+ */
+class OverlayTest extends ItemizedOverlay<OverlayItem> {
+    
+	//用MapView构造ItemizedOverlay
+    public OverlayTest(Drawable mark,MapView mapView){
+            super(mark,mapView);
+    }
+    protected boolean onTap(int index) {
+        //在此处理item点击事件
+        System.out.println("item onTap: "+index);
+        return true;
+    }
+    public boolean onTap(GeoPoint pt, MapView mapView){
+                //在此处理MapView的点击事件，当返回 true时
+                super.onTap(pt,mapView);
+                return false;
+    }
+
+}       
 /**
  * 此demo用来展示如何结合定位SDK实现定位，并使用MyLocationOverlay绘制定位位置
  * 同时展示如何使用自定义图标绘制并点击时弹出泡泡
@@ -99,7 +124,34 @@ public class LocationOverlayDemo extends Activity {
 	boolean isFirstLoc = true;//是否首次定位
 	
 	Button captureButton = null;
+	Button uploadButton = null;
 	
+	
+	public void post(String url, List<NameValuePair> nameValuePairs) {
+	    HttpClient httpClient = new DefaultHttpClient();
+	    HttpContext localContext = new BasicHttpContext();
+	    HttpPost httpPost = new HttpPost(url);
+
+	    try {
+	        MultipartEntity entity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
+
+	        for(int index=0; index < nameValuePairs.size(); index++) {
+	            if(nameValuePairs.get(index).getName().equalsIgnoreCase("image")) {
+	                // If the key equals to "image", we use FileBody to transfer the data
+	                entity.addPart(nameValuePairs.get(index).getName(), new FileBody(new File (nameValuePairs.get(index).getValue())));
+	            } else {
+	                // Normal string data
+	                entity.addPart(nameValuePairs.get(index).getName(), new StringBody(nameValuePairs.get(index).getValue()));
+	            }
+	        }
+
+	        httpPost.setEntity(entity);
+
+	        HttpResponse response = httpClient.execute(httpPost, localContext);
+	    } catch (IOException e) {
+	        e.printStackTrace();
+	    }
+	}	
 	
 	
     @Override
@@ -110,7 +162,7 @@ public class LocationOverlayDemo extends Activity {
         setTitle(titleLable);
         
         captureButton = (Button)findViewById(R.id.button_capture);
-        
+        uploadButton = (Button)findViewById(R.id.upload_picture);
         
         
         requestLocButton = (Button)findViewById(R.id.button1);
@@ -136,24 +188,69 @@ public class LocationOverlayDemo extends Activity {
 					}
         		} //end if v==
         		else if(v == captureButton){
-        			
-        			captureButton.setText("照相");
+           			captureButton.setText("照相");
         			Intent intent = new Intent();
         			intent.setClass(LocationOverlayDemo.this, AndroidCameraActivity.class);
-        			LocationOverlayDemo.this.startActivity(intent);
-						
+        			LocationOverlayDemo.this.startActivity(intent);	
+					
+        			//准备要添加的Overlay
+					double mLat1 = Double.parseDouble(GlobalClass.locationx);
+					double mLon1 = Double.parseDouble(GlobalClass.locationy);
+					double mLat2 = Double.parseDouble(GlobalClass.locationx);
+					double mLon2 = Double.parseDouble(GlobalClass.locationy);
+					double mLat3 = Double.parseDouble(GlobalClass.locationx);
+					double mLon3 = Double.parseDouble(GlobalClass.locationy);
+					// 用给定的经纬度构造GeoPoint，单位是微度 (度 * 1E6)
+					GeoPoint p1 = new GeoPoint((int) (mLat1 * 1E6), (int) (mLon1 * 1E6));
+					GeoPoint p2 = new GeoPoint((int) (mLat2 * 1E6), (int) (mLon2 * 1E6));
+					GeoPoint p3 = new GeoPoint((int) (mLat3 * 1E6), (int) (mLon3 * 1E6));
+					//准备overlay图像数据，根据实情情况修复
+					Drawable mark= getResources().getDrawable(R.drawable.icon_marka);
+					//用OverlayItem准备Overlay数据
+					OverlayItem item1 = new OverlayItem(p1,"item1","item1");
+					//使用setMarker()方法设置overlay图片,如果不设置则使用构建ItemizedOverlay时的默认设置
+					OverlayItem item2 = new OverlayItem(p2,"item2","item2");
+					item2.setMarker(mark);
+					OverlayItem item3 = new OverlayItem(p3,"item3","item3");
+					 
+					//创建IteminizedOverlay
+					OverlayTest itemOverlay = new OverlayTest(mark, mMapView);
+					//将IteminizedOverlay添加到MapView中
+
+					mMapView.getOverlays().clear();
+					mMapView.getOverlays().add(itemOverlay);
+					 
+					//现在所有准备工作已准备好，使用以下方法管理overlay.
+					//添加overlay, 当批量添加Overlay时使用addItem(List&lt;OverlayItem&gt;)效率更高
+					itemOverlay.addItem(item1);
+					itemOverlay.addItem(item2);
+					itemOverlay.addItem(item3);
+					mMapView.refresh();
+					//删除overlay .
+					//itemOverlay.removeItem(itemOverlay.getItem(0));
+					//mMapView.refresh();
+					//清除overlay
+					// itemOverlay.removeAll();
+					// mMapView.refresh();
 				}
+        		else if (v  == uploadButton)
+        		{
+        			Intent intent = new Intent();
+        			intent.setClass(LocationOverlayDemo.this, MainActivity.class);
+        			LocationOverlayDemo.this.startActivity(intent);	
+        		}
         	
 			}
 		};
 	    requestLocButton.setOnClickListener(btnClickListener);
 	    captureButton.setOnClickListener(btnClickListener);
+	    uploadButton.setOnClickListener(btnClickListener);
 	    
-        RadioGroup group = (RadioGroup)this.findViewById(R.id.radioGroup);
-        radioButtonListener = new OnCheckedChangeListener() {
+       // RadioGroup group = (RadioGroup)this.findViewById(R.id.radioGroup);
+        //radioButtonListener = new OnCheckedChangeListener() {
 			
-			@Override
-			public void onCheckedChanged(RadioGroup group, int checkedId) {
+			//@Override
+			/*public void onCheckedChanged(RadioGroup group, int checkedId) {
 				if (checkedId == R.id.defaulticon){
 					//传入null则，恢复默认图标
 					modifyLocationOverlayIcon(null);
@@ -164,7 +261,7 @@ public class LocationOverlayDemo extends Activity {
 				}
 			}
 		};
-		group.setOnCheckedChangeListener(radioButtonListener);
+		group.setOnCheckedChangeListener(radioButtonListener);*/
         
 		//地图初始化
         mMapView = (MyLocationMapView)findViewById(R.id.bmapView);
@@ -236,31 +333,7 @@ public class LocationOverlayDemo extends Activity {
      */
     public class MyLocationListenner implements BDLocationListener {
     	
-    	public void post(String url, List<NameValuePair> nameValuePairs) {
-    	    HttpClient httpClient = new DefaultHttpClient();
-    	    HttpContext localContext = new BasicHttpContext();
-    	    HttpPost httpPost = new HttpPost(url);
 
-    	    try {
-    	        MultipartEntity entity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
-
-    	        for(int index=0; index < nameValuePairs.size(); index++) {
-    	            if(nameValuePairs.get(index).getName().equalsIgnoreCase("image")) {
-    	                // If the key equals to "image", we use FileBody to transfer the data
-    	                entity.addPart(nameValuePairs.get(index).getName(), new FileBody(new File (nameValuePairs.get(index).getValue())));
-    	            } else {
-    	                // Normal string data
-    	                entity.addPart(nameValuePairs.get(index).getName(), new StringBody(nameValuePairs.get(index).getValue()));
-    	            }
-    	        }
-
-    	        httpPost.setEntity(entity);
-
-    	        HttpResponse response = httpClient.execute(httpPost, localContext);
-    	    } catch (IOException e) {
-    	        e.printStackTrace();
-    	    }
-    	}	
     	
     
     	
@@ -272,7 +345,8 @@ public class LocationOverlayDemo extends Activity {
             
             locData.latitude = location.getLatitude();
             locData.longitude = location.getLongitude();
-            
+            GlobalClass.locationx = Double.toString(locData.latitude);
+            GlobalClass.locationy = Double.toString(locData.longitude);
             
             
             
