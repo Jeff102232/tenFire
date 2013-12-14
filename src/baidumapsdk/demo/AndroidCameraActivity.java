@@ -79,6 +79,7 @@ public class AndroidCameraActivity extends Activity implements OnClickListener, 
         //get the current time  
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());   
         GlobalClass.lastFileName = picDir.getPath() + File.separator + "IMAGE_"+ timeStamp + ".jpg";
+        GlobalClass.minifilename = picDir.getPath() + File.separator + "image_"+ timeStamp + ".jpg";
         return new File(GlobalClass.lastFileName );    
     }
 }
